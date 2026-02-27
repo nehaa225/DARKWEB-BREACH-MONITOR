@@ -60,18 +60,31 @@ def ensure_columns_exist():
 ensure_columns_exist()
 
 # ==============================
-# EMAIL BREACH CHECK
+# EMAIL BREACH CHECK (SAFE)
 # ==============================
 def check_email_breach(email):
     try:
         url = f"https://leakcheck.io/api/public?check={email}"
         response = requests.get(url, timeout=10)
-        data = response.json()
+
+        # Check HTTP status
+        if response.status_code != 200:
+            st.warning(f"API returned status {response.status_code} for {email}")
+            return []
+
+        # Try parsing JSON safely
+        try:
+            data = response.json()
+        except ValueError:
+            st.warning(f"API returned invalid JSON for {email}: {response.text[:100]}")
+            return []
+
         if data.get("success") and data.get("found") > 0:
             return data.get("sources")
         return []
-    except Exception as e:
-        st.warning(f"API error: {e}")
+
+    except requests.exceptions.RequestException as e:
+        st.warning(f"API request failed for {email}: {e}")
         return []
 
 # ==============================
@@ -203,18 +216,15 @@ with tab1:
                     st.markdown("---")
                     formatted_sources += f"- {name} ({date}) - Exposed Data: {', '.join(leaks)}\n"
 
-                # AI Risk Analysis (offline)
                 ai_result = generate_risk_analysis(email, len(breaches), all_exposed_data)
                 st.subheader("🤖 AI Risk Analysis (Offline)")
                 st.text(ai_result)
 
-                # Remediation Recommendations
                 st.subheader("🛠 Remediation Recommendations")
                 remediation_steps = remediation_recommendation(all_exposed_data, len(breaches))
                 for step in remediation_steps:
                     st.write(step)
 
-                # Send alert email
                 alert_message = f"""
 ⚠️ Dark Web Breach Alert Report
 
