@@ -24,12 +24,85 @@ st.set_page_config(
     page_icon="🛡️",
     layout="wide"
 )
+
+# ==============================
+# CUSTOM CSS
+# ==============================
 st.markdown("""
-    <style>
-        footer {visibility: hidden;}
-        #MainMenu {visibility: hidden;}
-        header {visibility: hidden;}
-    </style>
+<style>
+/* ---- GENERAL ---- */
+body {background-color: #0d1117; color: #c9d1d9; font-family: 'Segoe UI', sans-serif;}
+footer, #MainMenu, header {visibility: hidden;}
+
+/* ---- TITLES ---- */
+h1, h2, h3, h4, h5 {color: #58a6ff; font-weight: 600;}
+h1 {font-size: 2.5em; text-align: center; margin-bottom: 30px;}
+
+/* ---- BUTTONS ---- */
+.stButton>button {
+    background: linear-gradient(135deg, #ff7b72, #ffb86c);
+    color: #0d1117;
+    font-weight: bold;
+    border-radius: 8px;
+    padding: 0.6em 1.2em;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.stButton>button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0px 6px 12px rgba(255,123,114,0.4);
+}
+
+/* ---- DATAFRAME / DASHBOARD ---- */
+.stDataFrame div[data-testid="stDataFrame"] {
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    background-color: #161b22;
+    color: #c9d1d9;
+    padding: 15px;
+}
+
+/* ---- BAR CHART ---- */
+canvas {filter: drop-shadow(0 0 6px #58a6ff);}
+
+/* ---- ALERTS ---- */
+.stAlert {
+    border-left: 5px solid #ff7b72;
+    background-color: #161b22;
+    color: #f0f6fc;
+}
+
+/* ---- AI RISK ANALYSIS BOX ---- */
+.ai-analysis-box {
+    background: linear-gradient(135deg, #1f2937, #0f172a);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 15px 0;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+    font-family: 'Courier New', monospace;
+    white-space: pre-wrap;
+}
+
+/* ---- REMEDIATION RECOMMENDATIONS ---- */
+.recommendation-step {
+    background-color: #161b22;
+    border-left: 5px solid #58a6ff;
+    padding: 10px;
+    margin: 8px 0;
+    border-radius: 8px;
+    font-weight: 500;
+}
+
+/* ---- API DOCS ---- */
+.api-doc {
+    background-color: #161b22;
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+}
+a {color: #58a6ff; text-decoration: underline;}
+a:hover {color: #1f6feb;}
+</style>
 """, unsafe_allow_html=True)
 
 # ==============================
@@ -47,51 +120,41 @@ CREATE TABLE IF NOT EXISTS users(
 conn.commit()
 
 def ensure_columns_exist():
-    try:
-        c.execute("ALTER TABLE users ADD COLUMN last_checked TEXT")
-    except sqlite3.OperationalError:
-        pass
-    try:
-        c.execute("ALTER TABLE users ADD COLUMN breach_count INTEGER DEFAULT 0")
-    except sqlite3.OperationalError:
-        pass
+    try: c.execute("ALTER TABLE users ADD COLUMN last_checked TEXT")
+    except sqlite3.OperationalError: pass
+    try: c.execute("ALTER TABLE users ADD COLUMN breach_count INTEGER DEFAULT 0")
+    except sqlite3.OperationalError: pass
     c.execute("UPDATE users SET breach_count = 0 WHERE breach_count IS NULL")
     conn.commit()
 
 ensure_columns_exist()
 
 # ==============================
-# EMAIL BREACH CHECK (SAFE + RATE LIMIT HANDLING)
+# EMAIL BREACH CHECK
 # ==============================
 def check_email_breach(email):
     try:
         url = f"https://leakcheck.io/api/public?check={email}"
         response = requests.get(url, timeout=10)
-
         if response.status_code == 429:
             st.warning(f"API rate limit exceeded for {email}. Try again later.")
             return []
-
         if response.status_code != 200:
             st.warning(f"API returned status {response.status_code} for {email}")
             return []
-
-        try:
-            data = response.json()
+        try: data = response.json()
         except ValueError:
             st.warning(f"API returned invalid JSON for {email}: {response.text[:100]}")
             return []
-
         if data.get("success") and data.get("found") > 0:
             return data.get("sources")
         return []
-
     except requests.exceptions.RequestException as e:
         st.warning(f"API request failed for {email}: {e}")
         return []
 
 # ==============================
-# OFFLINE AI RISK ANALYSIS
+# AI RISK ANALYSIS
 # ==============================
 def generate_risk_analysis(email, breach_count, exposed_data_list):
     if not exposed_data_list:
@@ -195,7 +258,6 @@ tab1, tab2, tab3 = st.tabs(["Monitor Email", "Dashboard", "API Docs"])
 # --- TAB 1: Monitor Email ---
 with tab1:
     email = st.text_input("Enter your Email Address")
-
     if st.button("Check Email Breach Status"):
         if not email:
             st.warning("Please enter your email.")
@@ -205,7 +267,6 @@ with tab1:
                 st.error("⚠️ Email Found in Data Breaches!")
                 formatted_sources = ""
                 all_exposed_data = []
-
                 for breach in breaches:
                     name = breach.get("name") or breach.get("title") or "Unknown Source"
                     date = breach.get("breachDate") or breach.get("date") or "Unknown Date"
@@ -221,12 +282,12 @@ with tab1:
 
                 ai_result = generate_risk_analysis(email, len(breaches), all_exposed_data)
                 st.subheader("🤖 AI Risk Analysis (Offline)")
-                st.text(ai_result)
+                st.markdown(f'<div class="ai-analysis-box">{ai_result}</div>', unsafe_allow_html=True)
 
                 st.subheader("🛠 Remediation Recommendations")
                 remediation_steps = remediation_recommendation(all_exposed_data, len(breaches))
                 for step in remediation_steps:
-                    st.write(step)
+                    st.markdown(f'<div class="recommendation-step">{step}</div>', unsafe_allow_html=True)
 
                 alert_message = f"""
 ⚠️ Dark Web Breach Alert Report
@@ -264,30 +325,21 @@ with tab2:
     st.subheader("📊 Breach Monitoring Dashboard (Auto-Update)")
     c.execute("SELECT * FROM users")
     users = c.fetchall()
-
     if users:
         dashboard_data = []
         for user in users:
             email_db = user["email"]
-
-            # Skip emails checked in last 6 hours
             last_checked_dt = datetime.strptime(user["last_checked"], "%Y-%m-%d %H:%M:%S") if user["last_checked"] else None
             if last_checked_dt and datetime.now() - last_checked_dt < timedelta(hours=6):
-                breaches = []  # skip API call
+                breaches = []
                 breach_count = int(user["breach_count"])
             else:
                 breaches = check_email_breach(email_db) or []
                 breach_count = len(breaches)
-                time.sleep(1.5)  # prevent 429 rate limit
-
+                time.sleep(1.5)
             last_checked_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-            c.execute(
-                "UPDATE users SET last_checked = ?, breach_count = ? WHERE email = ?",
-                (last_checked_now, breach_count, email_db)
-            )
+            c.execute("UPDATE users SET last_checked = ?, breach_count = ? WHERE email = ?", (last_checked_now, breach_count, email_db))
             conn.commit()
-
             if breaches and breach_count > int(user["breach_count"]):
                 alert_message = f"""
 ⚠️ Dark Web Breach Alert Report
@@ -299,13 +351,7 @@ Current Breach Count: {breach_count}
 Check the dashboard for detailed information.
 """
                 send_alert(email_db, alert_message)
-
-            dashboard_data.append({
-                "Email": email_db,
-                "Breach Count": breach_count,
-                "Last Checked": last_checked_now
-            })
-
+            dashboard_data.append({"Email": email_db, "Breach Count": breach_count, "Last Checked": last_checked_now})
         df = pd.DataFrame(dashboard_data)
         st.dataframe(df)
         st.bar_chart(df.set_index("Email")["Breach Count"])
@@ -315,22 +361,6 @@ Check the dashboard for detailed information.
 # --- TAB 3: API Docs ---
 with tab3:
     st.subheader("📖 API Integration Documentation")
-    st.markdown("### 1. LeakCheck API")
-    st.markdown("""
-- **Purpose:** Detect if email is in known breaches  
-- **Endpoint:** `https://leakcheck.io/api/public?check=<EMAIL>`  
-- **Method:** GET  
-- **Response:** JSON with `success`, `found`, `sources`  
-""")
-    st.markdown("### 2. Offline AI Risk Analysis")
-    st.markdown("""
-- **Purpose:** Generates structured risk assessment without external API  
-- **Function:** `generate_risk_analysis(email, breach_count, exposed_data_list)`  
-- **Output:** Multi-line text with risk level, danger, immediate steps, and long-term advice
-""")
-    st.markdown("### 3. SMTP Email Alerts")
-    st.markdown("""
-- **Purpose:** Notify users via email  
-- **Library:** `smtplib` + `email.message.EmailMessage`  
-- **Requirements:** `EMAIL_USER`, `EMAIL_PASS` environment variables  
-""")
+    st.markdown('<div class="api-doc">### 1. LeakCheck API\n- Purpose: Detect if email is in known breaches\n- Endpoint: `https://leakcheck.io/api/public?check=<EMAIL>`\n- Method: GET\n- Response: JSON with `success`, `found`, `sources`</div>', unsafe_allow_html=True)
+    st.markdown('<div class="api-doc">### 2. Offline AI Risk Analysis\n- Purpose: Generates structured risk assessment without external API\n- Function: `generate_risk_analysis(email, breach_count, exposed_data_list)`\n- Output: Multi-line text with risk level, danger, immediate steps, and long-term advice</div>', unsafe_allow_html=True)
+    st.markdown('<div class="api-doc">### 3. SMTP Email Alerts\n- Purpose: Notify users via email\n- Library: `smtplib` + `email.message.EmailMessage`\n- Requirements: `EMAIL_USER`, `EMAIL_PASS` environment variables</div>', unsafe_allow_html=True)
