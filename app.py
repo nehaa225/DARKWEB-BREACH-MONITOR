@@ -36,26 +36,42 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================
-# DATABASE SETUP (SAFE)
+# DATABASE SETUP
 # ==============================
 conn = sqlite3.connect("users.db", check_same_thread=False)
 c = conn.cursor()
 
-# Create table safely with defaults
+# Create table safely
 c.execute("""
 CREATE TABLE IF NOT EXISTS users(
-    email TEXT UNIQUE,
-    last_checked TEXT,
-    breach_count INTEGER DEFAULT 0
+    email TEXT UNIQUE
 )
 """)
+conn.commit()
+
+# ==============================
+# SAFE DATABASE COLUMN UPDATE
+# ==============================
+def ensure_columns_exist():
+    # Add last_checked column if missing
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN last_checked TEXT")
+    except sqlite3.OperationalError:
+        pass  # Already exists
+
+    # Add breach_count column if missing
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN breach_count INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass  # Already exists
+
+ensure_columns_exist()
 conn.commit()
 
 # ==============================
 # EMAIL BREACH CHECK
 # ==============================
 def check_email_breach(email):
-    """Returns list of breaches with detailed info"""
     try:
         url = f"https://leakcheck.io/api/public?check={email}"
         response = requests.get(url, timeout=10)
@@ -73,10 +89,8 @@ def check_email_breach(email):
 def ai_risk_analysis(email, breach_count, exposed_data_list):
     if not GOOGLE_API_KEY:
         return "⚠️ AI analysis unavailable (API key not configured)."
-
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
-
         if "Information not provided by source" in exposed_data_list:
             data_summary = ', '.join([d for d in exposed_data_list if d != "Information not provided by source"])
             note = "⚠️ Some exposed data types were not provided by the source; treat this as higher risk."
@@ -85,7 +99,6 @@ def ai_risk_analysis(email, breach_count, exposed_data_list):
         else:
             data_summary = ', '.join(exposed_data_list)
             note = ""
-
         prompt = f"""
 User email: {email}
 Number of breaches: {breach_count}
@@ -99,16 +112,12 @@ Provide:
 3. Immediate steps
 4. Long-term protection advice
 """
-
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
-
         response = requests.post(url, json=payload, timeout=20)
         if response.status_code != 200:
             return f"⚠️ API Error: {response.json().get('error', {}).get('message', 'Unknown error')}"
-
         result = response.json()
         return result["candidates"][0]["content"]["parts"][0]["text"]
-
     except Exception as e:
         return f"⚠️ AI analysis error: {str(e)}"
 
@@ -131,14 +140,12 @@ def send_alert(to_email, message):
     if not EMAIL_USER or not EMAIL_PASS:
         st.warning("⚠️ Email credentials not configured.")
         return
-
     try:
         msg = EmailMessage()
         msg.set_content(message)
         msg['Subject'] = "⚠️ Dark Web Breach Alert"
         msg['From'] = EMAIL_USER
         msg['To'] = to_email
-
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         server.login(EMAIL_USER, EMAIL_PASS)
         server.send_message(msg)
@@ -150,7 +157,6 @@ def send_alert(to_email, message):
 # UI
 # ==============================
 st.title("🛡️ Dark Web Email Breach Monitor")
-
 tab1, tab2, tab3 = st.tabs(["Monitor Email", "Dashboard", "API Docs"])
 
 # --- TAB 1: MONITOR EMAIL ---
@@ -175,18 +181,15 @@ with tab1:
                         leaks = ["Information not provided by source"]
 
                     all_exposed_data.extend(leaks)
-
                     st.markdown(f"**🔹 Breach:** {name}")
                     st.markdown(f"📅 **Breach Date:** {date}")
                     st.markdown(f"🗂 **Exposed Data:** {', '.join(leaks)}")
                     st.markdown("---")
-
                     formatted_sources += f"- {name} ({date}) - Exposed Data: {', '.join(leaks)}\n"
 
                 ai_result = ai_risk_analysis(email, len(breaches), all_exposed_data)
                 st.subheader("🤖 AI Risk Analysis")
                 st.write(ai_result)
-
                 email_remediation()
 
                 alert_message = f"""
@@ -226,15 +229,12 @@ Recommended Actions:
 # --- TAB 2: DASHBOARD (Auto-Check on Load) ---
 with tab2:
     st.subheader("📊 Breach Monitoring Dashboard (Auto-Update)")
-
     c.execute("SELECT * FROM users")
     users = c.fetchall()
 
     if users:
         dashboard_data = []
-
         for user in users:
-            # Safe access to tuple elements
             email_db = user[0]
             last_checked = user[1] if len(user) > 1 else None
             previous_breach_count = user[2] if len(user) > 2 else 0
@@ -243,7 +243,7 @@ with tab2:
             breach_count = len(breaches)
             last_checked_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            # Update database safely
+            # Update DB safely
             c.execute(
                 "UPDATE users SET last_checked = ?, breach_count = ? WHERE email = ?",
                 (last_checked_now, breach_count, email_db)
@@ -278,7 +278,6 @@ Check the dashboard for detailed information.
 # --- TAB 3: API DOCS ---
 with tab3:
     st.subheader("📖 API Integration Documentation")
-
     st.markdown("### 1. LeakCheck API")
     st.markdown("""
 - **Purpose:** Detect if email is in known breaches  
@@ -286,7 +285,6 @@ with tab3:
 - **Method:** GET  
 - **Response:** JSON with `success`, `found`, `sources`  
 """)
-
     st.markdown("### 2. Google Gemini AI API")
     st.markdown("""
 - **Purpose:** AI-generated risk analysis  
@@ -294,7 +292,6 @@ with tab3:
 - **Method:** POST  
 - **Payload:** JSON with `contents`  
 """)
-
     st.markdown("### 3. SMTP Email Alerts")
     st.markdown("""
 - **Purpose:** Notify users via email  
