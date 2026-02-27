@@ -74,16 +74,16 @@ def check_email_breach(email):
 
 def send_alert(to_email, message):
     try:
-        msg = EmailMessage()
-        msg.set_content(message)
-        msg['Subject'] = "⚠️ Dark Web Breach Alert"
-        msg['From'] = "nehaareddy02@gmail.com"
-        msg['To'] = to_email
-
-        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         EMAIL_USER = os.getenv("EMAIL_USER")
         EMAIL_PASS = os.getenv("EMAIL_PASS")
 
+        msg = EmailMessage()
+        msg.set_content(message)
+        msg['Subject'] = "⚠️ Dark Web Breach Alert"
+        msg['From'] = EMAIL_USER
+        msg['To'] = to_email
+
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         server.login(EMAIL_USER, EMAIL_PASS)
         server.send_message(msg)
         server.quit()
