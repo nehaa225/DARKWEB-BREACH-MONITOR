@@ -3,7 +3,6 @@ import requests
 import sqlite3
 import smtplib
 import os
-import google.genai as genai
 from email.message import EmailMessage
 from dotenv import load_dotenv
 
@@ -64,34 +63,41 @@ def check_email_breach(email):
 # ==============================
 
 def ai_risk_analysis(email, breach_count):
-
     api_key = os.getenv("GOOGLE_API_KEY")
 
     if not api_key:
         return "⚠️ AI analysis unavailable (API key not configured)."
 
     try:
-        client = genai.Client(api_key=api_key)
+        # 1. Use the 1.5 Flash model and v1beta endpoint
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
 
         prompt = f"""
-User email: {email}
-Number of breach sources: {breach_count}
+        User email: {email}
+        Number of breach sources: {breach_count}
 
-Provide:
-1. Risk Level (Low/Medium/High/Critical)
-2. Why this is dangerous
-3. Immediate steps
-4. Long-term protection advice
+        Provide:
+        1. Risk Level (Low/Medium/High/Critical)
+        2. Why this is dangerous
+        3. Immediate steps
+        4. Long-term protection advice
+        """
 
-Keep it clear and concise.
-"""
+        payload = {
+            "contents": [{
+                "parts": [{"text": prompt}]
+            }]
+        }
 
-        response = client.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=prompt,
-        )
+        # 2. Make the request
+        response = requests.post(url, json=payload, timeout=20)
+        
+        # 3. Check for errors specifically
+        if response.status_code != 200:
+            return f"⚠️ API Error: {response.json().get('error', {}).get('message', 'Unknown error')}"
 
-        return response.text
+        result = response.json()
+        return result["candidates"][0]["content"]["parts"][0]["text"]
 
     except Exception as e:
         return f"⚠️ AI analysis error: {str(e)}"
