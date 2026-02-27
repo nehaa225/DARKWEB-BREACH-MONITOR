@@ -66,8 +66,7 @@ def ai_risk_analysis(email, breach_count, exposed_data_list):
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
 
-        # Mark unknown data types
-        data_summary = ', '.join(exposed_data_list) if exposed_data_list else "Unknown Data Types"
+        data_summary = ', '.join(exposed_data_list) if exposed_data_list else "Email"
 
         prompt = f"""
 User email: {email}
@@ -156,17 +155,28 @@ if st.button("Check Email Breach Status"):
             all_exposed_data = []
 
             for breach in breaches:
-                # Handle missing or inconsistent fields
+                # Get breach name
                 name = breach.get("name") or breach.get("title") or "Unknown Source"
-                date = breach.get("breachDate") or breach.get("date") or "Unknown Date"
-                leaks = breach.get("leaks") or breach.get("dataTypes") or []
 
+                # Get breach date
+                date = breach.get("breachDate") or breach.get("date") or "Unknown Date"
+
+                # Get exposed data (check multiple possible fields)
+                leaks = []
+                if "leaks" in breach and breach["leaks"]:
+                    leaks = breach["leaks"]
+                elif "dataTypes" in breach and breach["dataTypes"]:
+                    leaks = breach["dataTypes"]
+                elif "compromisedData" in breach and breach["compromisedData"]:
+                    leaks = breach["compromisedData"]
+
+                # If still empty, default to Email
                 if not leaks:
-                    leaks = ["Unknown Data Types"]
+                    leaks = ["Email"]
 
                 all_exposed_data.extend(leaks)
 
-                # Display detailed breach info
+                # Display breach info
                 st.markdown(f"**🔹 Breach:** {name}")
                 st.markdown(f"📅 **Breach Date:** {date}")
                 st.markdown(f"🗂 **Exposed Data:** {', '.join(leaks)}")
@@ -201,8 +211,6 @@ Recommended Actions:
 - Enable 2FA everywhere
 - Check for suspicious login activity
 - Monitor financial & linked accounts
-
-⚠️ Note: Some breach data may be incomplete; review each source manually.
 """
             send_alert(email, alert_message)
             st.info("📩 Alert email sent successfully.")
