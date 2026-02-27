@@ -14,6 +14,7 @@ from datetime import datetime
 load_dotenv()
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # ==============================
 # PAGE CONFIG
@@ -35,9 +36,10 @@ st.markdown("""
 # DATABASE SETUP
 # ==============================
 conn = sqlite3.connect("users.db", check_same_thread=False)
-conn.row_factory = sqlite3.Row
+conn.row_factory = sqlite3.Row  # access columns by name safely
 c = conn.cursor()
 
+# Create table safely
 c.execute("""
 CREATE TABLE IF NOT EXISTS users(
     email TEXT UNIQUE
@@ -46,17 +48,20 @@ CREATE TABLE IF NOT EXISTS users(
 conn.commit()
 
 # ==============================
-# DATABASE COLUMN UPDATE
+# SAFE DATABASE COLUMN UPDATE
 # ==============================
 def ensure_columns_exist():
     try:
         c.execute("ALTER TABLE users ADD COLUMN last_checked TEXT")
     except sqlite3.OperationalError:
-        pass
+        pass  # already exists
+
     try:
         c.execute("ALTER TABLE users ADD COLUMN breach_count INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
-        pass
+        pass  # already exists
+
+    # Fix NULL breach_count
     c.execute("UPDATE users SET breach_count = 0 WHERE breach_count IS NULL")
     conn.commit()
 
@@ -78,9 +83,14 @@ def check_email_breach(email):
         return []
 
 # ==============================
-# OFFLINE AI RISK ANALYSIS
+# AI RISK ANALYSIS
 # ==============================
 def generate_risk_analysis(email, breach_count, exposed_data_list):
+    """
+    Generate structured risk analysis for an email breach.
+    Works even if exact exposed data is unknown.
+    """
+    # Data summary
     if not exposed_data_list:
         data_summary = "Information not provided by source"
         unknown_data = True
@@ -88,6 +98,7 @@ def generate_risk_analysis(email, breach_count, exposed_data_list):
         data_summary = ', '.join(exposed_data_list)
         unknown_data = "Information not provided by source" in exposed_data_list
 
+    # Risk level logic
     if breach_count == 0:
         risk_level = "Low"
     elif breach_count == 1 and not unknown_data:
@@ -95,6 +106,7 @@ def generate_risk_analysis(email, breach_count, exposed_data_list):
     else:
         risk_level = "High" if breach_count >= 1 else "Medium"
 
+    # Immediate steps
     immediate_steps = [
         "Change the password of this email immediately, and any accounts using the same password.",
         "Enable Two-Factor Authentication (2FA) wherever possible.",
@@ -102,6 +114,7 @@ def generate_risk_analysis(email, breach_count, exposed_data_list):
         "Check if your email is listed in other breach databases (e.g., Have I Been Pwned)."
     ]
 
+    # Long-term advice
     long_term_advice = [
         "Use a unique password for every account and consider a password manager.",
         "Regularly monitor emails for breaches or suspicious activity.",
@@ -109,6 +122,7 @@ def generate_risk_analysis(email, breach_count, exposed_data_list):
         "Review connected apps and revoke access for unknown or suspicious ones."
     ]
 
+    # Construct output
     analysis = f"""
 Email: {email}
 Number of Breaches: {breach_count}
@@ -128,30 +142,48 @@ Exposed Data: {data_summary}
 - {chr(10).join(long_term_advice)}
 """
     return analysis
+        # Call API
+        response = requests.post(url, json=payload, timeout=20)
+        if response.status_code != 200:
+            return f"⚠️ API Error: {response.json().get('error', {}).get('message', 'Unknown error')}"
+
+        result = response.json()
+        # Extract generated text
+        ai_text = result.get("candidates", [{}])[0].get("output", "")
+        return ai_text or "⚠️ AI returned no result."
+
+    except Exception as e:
+        return f"⚠️ AI analysis error: {str(e)}"
 
 # ==============================
 # REMEDIATION RECOMMENDATION
 # ==============================
 def remediation_recommendation(exposed_data_list, breach_count):
-    recommendations = [
-        "• Change passwords on all affected platforms.",
-        "• Enable Two-Factor Authentication (2FA) on all accounts.",
-        "• Check for suspicious login activity."
-    ]
+    recommendations = []
+
+    # Base recommendations
+    recommendations.append("• Change passwords on all affected platforms.")
+    recommendations.append("• Enable Two-Factor Authentication (2FA) on all accounts.")
+    recommendations.append("• Check for suspicious login activity.")
+    
+    # Data-specific recommendations
     if any(d.lower() in ["password", "hashedpassword"] for d in exposed_data_list):
-        recommendations.append("• Your passwords were leaked. Update all accounts and use a password manager.")
+        recommendations.append("• Your passwords were leaked. Consider using a password manager and updating all accounts immediately.")
+    
     if any(d.lower() in ["email", "username"] for d in exposed_data_list) and breach_count > 1:
-        recommendations.append("• Multiple breaches detected for your email. Watch out for phishing.")
+        recommendations.append("• Multiple breaches detected for your email. Be cautious with phishing attempts.")
+    
     if any(d.lower() in ["ssn", "socialsecuritynumber", "dob"] for d in exposed_data_list):
         recommendations.append("• Sensitive personal information exposed. Consider credit monitoring or identity theft protection.")
+    
     if any(d.lower() in ["credit card", "payment", "bank"] for d in exposed_data_list):
-        recommendations.append("• Payment info exposed. Contact your bank and monitor transactions.")
+        recommendations.append("• Payment info exposed. Contact your bank and monitor financial transactions.")
 
-    recommendations.extend([
-        "• Regularly monitor your emails for breaches.",
-        "• Use unique passwords for each account.",
-        "• Consider using AI-based monitoring for sensitive data."
-    ])
+    # Long-term recommendations
+    recommendations.append("• Regularly monitor your emails for breaches.")
+    recommendations.append("• Use unique passwords for each account.")
+    recommendations.append("• Consider using AI-based monitoring for sensitive data.")
+
     return recommendations
 
 # ==============================
@@ -207,10 +239,10 @@ with tab1:
                     st.markdown("---")
                     formatted_sources += f"- {name} ({date}) - Exposed Data: {', '.join(leaks)}\n"
 
-                # AI Risk Analysis (offline)
-                ai_result = generate_risk_analysis(email, len(breaches), all_exposed_data)
-                st.subheader("🤖 AI Risk Analysis (Offline)")
-                st.text(ai_result)
+                # AI Risk Analysis
+                ai_result = ai_risk_analysis(email, len(breaches), all_exposed_data)
+                st.subheader("🤖 AI Risk Analysis")
+                st.write(ai_result)
 
                 # Remediation Recommendations
                 st.subheader("🛠 Remediation Recommendations")
@@ -260,6 +292,7 @@ with tab2:
         dashboard_data = []
         for user in users:
             email_db = user["email"]
+            last_checked = user["last_checked"]
             previous_breach_count = int(user["breach_count"]) if user["breach_count"] is not None else 0
 
             breaches = check_email_breach(email_db) or []
@@ -306,11 +339,12 @@ with tab3:
 - **Method:** GET  
 - **Response:** JSON with `success`, `found`, `sources`  
 """)
-    st.markdown("### 2. Offline AI Risk Analysis")
+    st.markdown("### 2. Google Gemini AI API")
     st.markdown("""
-- **Purpose:** Generates structured risk assessment without external API  
-- **Function:** `generate_risk_analysis(email, breach_count, exposed_data_list)`  
-- **Output:** Multi-line text with risk level, danger, immediate steps, and long-term advice
+- **Purpose:** AI-generated risk analysis  
+- **Endpoint:** `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=<API_KEY>`  
+- **Method:** POST  
+- **Payload:** JSON with `contents`  
 """)
     st.markdown("### 3. SMTP Email Alerts")
     st.markdown("""
