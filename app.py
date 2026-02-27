@@ -66,13 +66,22 @@ def ai_risk_analysis(email, breach_count, exposed_data_list):
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
 
-        # Mark unknown data types
-        data_summary = ', '.join(exposed_data_list) if exposed_data_list else "Information not provided by source"
+        # Handle missing data types
+        if "Information not provided by source" in exposed_data_list:
+            data_summary = ', '.join([d for d in exposed_data_list if d != "Information not provided by source"])
+            note = "⚠️ Some exposed data types were not provided by the source; treat this as higher risk."
+            if not data_summary:
+                data_summary = "Information not provided by source"
+        else:
+            data_summary = ', '.join(exposed_data_list)
+            note = ""
 
         prompt = f"""
 User email: {email}
 Number of breaches: {breach_count}
 Exposed data types: {data_summary}
+
+{note}
 
 Provide:
 1. Risk Level (Low/Medium/High/Critical)
@@ -81,11 +90,7 @@ Provide:
 4. Long-term protection advice
 """
 
-        payload = {
-            "contents": [{
-                "parts": [{"text": prompt}]
-            }]
-        }
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
 
         response = requests.post(url, json=payload, timeout=20)
         if response.status_code != 200:
@@ -176,9 +181,8 @@ if st.button("Check Email Breach Status"):
                 formatted_sources += f"- {name} ({date}) - Exposed Data: {', '.join(leaks)}\n"
 
             # AI Risk Analysis
-            breach_count = len(breaches)
+            ai_result = ai_risk_analysis(email, len(breaches), all_exposed_data)
             st.subheader("🤖 AI Risk Analysis")
-            ai_result = ai_risk_analysis(email, breach_count, all_exposed_data)
             st.write(ai_result)
 
             # Immediate remediation tips
@@ -189,7 +193,7 @@ if st.button("Check Email Breach Status"):
 ⚠️ Dark Web Breach Alert Report
 
 Email: {email}
-Number of Breaches Found: {breach_count}
+Number of Breaches Found: {len(breaches)}
 
 Breach Details:
 {formatted_sources}
