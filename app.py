@@ -37,7 +37,7 @@ c = conn.cursor()
 
 c.execute("""
 CREATE TABLE IF NOT EXISTS users(
-    email TEXT
+    email TEXT UNIQUE
 )
 """)
 conn.commit()
@@ -47,41 +47,41 @@ conn.commit()
 # ==============================
 
 def check_email_breach(email):
+    """Returns list of breaches with detailed info"""
     try:
         url = f"https://leakcheck.io/api/public?check={email}"
         response = requests.get(url, timeout=10)
         data = response.json()
-
         if data.get("success") and data.get("found") > 0:
             return data.get("sources")
         return None
-    except:
+    except Exception as e:
+        st.warning(f"API error: {e}")
         return None
 
 # ==============================
-# AI RISK ANALYSIS (GOOGLE GEMINI)
+# AI RISK ANALYSIS (Google Gemini)
 # ==============================
 
-def ai_risk_analysis(email, breach_count):
+def ai_risk_analysis(email, breach_count, exposed_data_list):
     api_key = os.getenv("GOOGLE_API_KEY")
-
     if not api_key:
         return "⚠️ AI analysis unavailable (API key not configured)."
 
     try:
-        # 1. Use the 1.5 Flash model and v1beta endpoint
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
 
         prompt = f"""
-        User email: {email}
-        Number of breach sources: {breach_count}
+User email: {email}
+Number of breaches: {breach_count}
+Exposed data types: {', '.join(exposed_data_list)}
 
-        Provide:
-        1. Risk Level (Low/Medium/High/Critical)
-        2. Why this is dangerous
-        3. Immediate steps
-        4. Long-term protection advice
-        """
+Provide:
+1. Risk Level (Low/Medium/High/Critical)
+2. Why this is dangerous
+3. Immediate steps
+4. Long-term protection advice
+"""
 
         payload = {
             "contents": [{
@@ -89,10 +89,7 @@ def ai_risk_analysis(email, breach_count):
             }]
         }
 
-        # 2. Make the request
         response = requests.post(url, json=payload, timeout=20)
-        
-        # 3. Check for errors specifically
         if response.status_code != 200:
             return f"⚠️ API Error: {response.json().get('error', {}).get('message', 'Unknown error')}"
 
@@ -107,19 +104,19 @@ def ai_risk_analysis(email, breach_count):
 # ==============================
 
 def email_remediation():
-    st.subheader("🔐 Immediate Actions Required")
+    st.subheader("🔐 Recommended Immediate Actions")
     st.write("• Change passwords on affected platforms")
-    st.write("• Enable 2-Factor Authentication (2FA)")
+    st.write("• Enable Two-Factor Authentication (2FA) everywhere")
     st.write("• Check for suspicious login activity")
     st.write("• Beware of phishing emails")
     st.write("• Monitor financial & linked accounts")
+    st.write("---")
 
 # ==============================
 # EMAIL ALERT SYSTEM
 # ==============================
 
 def send_alert(to_email, message):
-
     EMAIL_USER = os.getenv("EMAIL_USER")
     EMAIL_PASS = os.getenv("EMAIL_PASS")
 
@@ -138,7 +135,6 @@ def send_alert(to_email, message):
         server.login(EMAIL_USER, EMAIL_PASS)
         server.send_message(msg)
         server.quit()
-
     except Exception as e:
         st.warning(f"Email sending failed: {e}")
 
@@ -155,48 +151,58 @@ if st.button("Check Email Breach Status"):
     if not email:
         st.warning("Please enter your email.")
     else:
+        breaches = check_email_breach(email)
 
-        breach_sources = check_email_breach(email)
-
-        if breach_sources:
-
+        if breaches:
             st.error("⚠️ Email Found in Data Breaches!")
 
             formatted_sources = ""
+            all_exposed_data = []
 
-            for source in breach_sources:
-                if isinstance(source, dict):
-                    name = source.get("name", "Unknown Source")
-                else:
-                    name = str(source)
+            for breach in breaches:
+                name = breach.get("name", "Unknown Source")
+                date = breach.get("breachDate", "Unknown Date")
+                leaks = breach.get("leaks", ["Email"])  # default if leaks missing
 
-                st.write("🔹", name)
-                formatted_sources += f"- {name}\n"
+                # Collect all exposed data types for AI analysis
+                all_exposed_data.extend(leaks)
 
-            breach_count = len(breach_sources)
+                # Display detailed breach info
+                st.markdown(f"**🔹 Breach:** {name}")
+                st.markdown(f"📅 **Breach Date:** {date}")
+                st.markdown(f"🗂 **Exposed Data:** {', '.join(leaks)}")
+                st.markdown("---")
 
-            # AI ANALYSIS
+                formatted_sources += f"- {name} ({date}) - Exposed Data: {', '.join(leaks)}\n"
+
+            # AI Risk Analysis
+            breach_count = len(breaches)
             st.subheader("🤖 AI Risk Analysis")
-            ai_result = ai_risk_analysis(email, breach_count)
+            ai_result = ai_risk_analysis(email, breach_count, all_exposed_data)
             st.write(ai_result)
 
-            # REMEDIATION SECTION
+            # Immediate remediation tips
             email_remediation()
 
-            # ALERT MESSAGE
+            # Send alert email
             alert_message = f"""
 ⚠️ Dark Web Breach Alert Report
 
 Email: {email}
-Breach Sources Found: {breach_count}
+Number of Breaches Found: {breach_count}
 
-Sources:
+Breach Details:
 {formatted_sources}
 
 AI Risk Analysis:
 {ai_result}
-"""
 
+Recommended Actions:
+- Change passwords on affected platforms
+- Enable 2FA everywhere
+- Check for suspicious login activity
+- Monitor financial & linked accounts
+"""
             send_alert(email, alert_message)
             st.info("📩 Alert email sent successfully.")
 
@@ -204,13 +210,16 @@ AI Risk Analysis:
             st.success("✅ Email NOT found in known public breaches.")
 
 # ==============================
-# SAVE EMAIL FOR MONITORING
+# SAVE EMAIL FOR CONTINUOUS MONITORING
 # ==============================
 
 if st.button("Save Email for Monitoring"):
     if email:
-        c.execute("INSERT INTO users VALUES (?)", (email,))
-        conn.commit()
-        st.success("Email saved for continuous monitoring!")
+        try:
+            c.execute("INSERT INTO users VALUES (?)", (email,))
+            conn.commit()
+            st.success("Email saved for continuous monitoring!")
+        except sqlite3.IntegrityError:
+            st.warning("Email is already being monitored.")
     else:
         st.warning("Enter email first.")
