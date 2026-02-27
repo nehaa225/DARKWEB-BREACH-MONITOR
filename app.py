@@ -1,13 +1,34 @@
 import streamlit as st
 import requests
-import hashlib
 import sqlite3
 import smtplib
 import os
+import google.genai as genai
 from email.message import EmailMessage
+from dotenv import load_dotenv
+
+load_dotenv()
+# ==============================
+# PAGE CONFIG
+# ==============================
+
+st.set_page_config(
+    page_title="Dark Web Email Breach Monitor",
+    page_icon="🛡️",
+    layout="wide"
+)
+
+# Hide Streamlit branding
+st.markdown("""
+    <style>
+        footer {visibility: hidden;}
+        #MainMenu {visibility: hidden;}
+        header {visibility: hidden;}
+    </style>
+""", unsafe_allow_html=True)
 
 # ==============================
-# DATABASE SETUP
+# DATABASE
 # ==============================
 
 conn = sqlite3.connect("users.db", check_same_thread=False)
@@ -15,68 +36,76 @@ c = conn.cursor()
 
 c.execute("""
 CREATE TABLE IF NOT EXISTS users(
-    email TEXT,
-    password TEXT
+    email TEXT
 )
 """)
 conn.commit()
 
 # ==============================
-# PASSWORD BREACH CHECK (FREE API)
-# ==============================
-
-def check_password(password):
-    sha1password = hashlib.sha1(password.encode()).hexdigest().upper()
-    first5_char = sha1password[:5]
-    tail = sha1password[5:]
-    
-    url = f"https://api.pwnedpasswords.com/range/{first5_char}"
-    response = requests.get(url)
-    
-    hashes = (line.split(':') for line in response.text.splitlines())
-    
-    for h, count in hashes:
-        if h == tail:
-            return count
-    
-    return 0
-
-# ==============================
-# EMAIL BREACH CHECK (DEMO MODE)
+# EMAIL BREACH CHECK
 # ==============================
 
 def check_email_breach(email):
-    
-    demo_breach_db = {
-        "test@gmail.com": [
-            {
-                "Name": "LinkedIn",
-                "BreachDate": "2021-06-01",
-                "PwnCount": 700000000,
-                "DataClasses": ["Emails", "Passwords"]
-            }
-        ],
-        "admin@yahoo.com": [
-            {
-                "Name": "Dropbox",
-                "BreachDate": "2020-03-15",
-                "PwnCount": 68000000,
-                "DataClasses": ["Emails"]
-            }
-        ]
-    }
-    
-    return demo_breach_db.get(email, None)
+    try:
+        url = f"https://leakcheck.io/api/public?check={email}"
+        response = requests.get(url, timeout=10)
+        data = response.json()
 
+        if data.get("success") and data.get("found") > 0:
+            return data.get("sources")
+        return None
+    except:
+        return None
+
+# ==============================
+# AI RISK ANALYSIS 
+# ==============================
+def ai_risk_analysis(email, breach_count):
+
+    api_key = os.getenv("GOOGLE_API_KEY")
+
+    if not api_key:
+        return "⚠️ AI analysis unavailable (API key not configured)."
+
+    try:
+        client = genai.Client(api_key=api_key)
+
+        prompt = f"""
+User email: {email}
+Number of breach sources: {breach_count}
+
+Provide:
+1. Risk Level (Low/Medium/High/Critical)
+2. Why this is dangerous
+3. Immediate steps
+4. Long-term protection advice
+
+Keep it clear and concise.
+"""
+
+        response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=prompt,
+        )
+
+        return response.text
+
+    except Exception as e:
+        return f"⚠️ AI analysis error: {str(e)}"
 # ==============================
 # EMAIL ALERT SYSTEM
 # ==============================
 
 def send_alert(to_email, message):
-    try:
-        EMAIL_USER = os.getenv("EMAIL_USER")
-        EMAIL_PASS = os.getenv("EMAIL_PASS")
 
+    EMAIL_USER = os.getenv("EMAIL_USER")
+    EMAIL_PASS = os.getenv("EMAIL_PASS")
+
+    if not EMAIL_USER or not EMAIL_PASS:
+        st.warning("⚠️ Email credentials not configured.")
+        return
+
+    try:
         msg = EmailMessage()
         msg.set_content(message)
         msg['Subject'] = "⚠️ Dark Web Breach Alert"
@@ -89,96 +118,74 @@ def send_alert(to_email, message):
         server.quit()
 
     except Exception as e:
-        st.warning(f"Email alert failed: {e}")
+        st.warning(f"Email sending failed: {e}")
 
 # ==============================
-# REMEDIATION SYSTEM
+# UI
 # ==============================
 
-def remediation_tips():
-    st.subheader("🔐 Recommended Security Actions")
-    st.write("• Change your password immediately")
-    st.write("• Enable Two-Factor Authentication (2FA)")
-    st.write("• Avoid reusing passwords")
-    st.write("• Use a password manager")
-    st.write("• Monitor financial and social accounts")
+st.title("🛡️ Dark Web Email Breach Monitor")
 
-# ==============================
-# STREAMLIT UI
-# ==============================
+email = st.text_input("Enter your Email Address")
 
-st.title("🛡️ Dark Web Breach Monitor Dashboard")
+if st.button("Check Email Breach Status"):
 
-email = st.text_input("Enter your Email")
-password = st.text_input("Enter your Password", type="password")
-
-# ==============================
-# CHECK BREACH BUTTON
-# ==============================
-
-if st.button("Check Breach Status"):
-
-    if not email or not password:
-        st.warning("Please enter both email and password.")
-
+    if not email:
+        st.warning("Please enter your email.")
     else:
-        breach_found = False
-        alert_message = "⚠️ Dark Web Breach Alert Report\n\n"
 
-        # 🔹 PASSWORD CHECK
-        breach_count = check_password(password)
+        breach_sources = check_email_breach(email)
 
-        if breach_count:
-            breach_found = True
-            st.error(f"⚠️ Password found {breach_count} times in breaches!")
-            alert_message += f"🔐 Password was found {breach_count} times in known data breaches.\n\n"
-        else:
-            st.success("✅ Password NOT found in known breaches.")
+        if breach_sources:
 
-        # 🔹 EMAIL CHECK
-        email_result = check_email_breach(email)
-
-        if email_result:
-            breach_found = True
             st.error("⚠️ Email Found in Data Breaches!")
 
-            alert_message += "📧 Email detected in the following breaches:\n"
+            formatted_sources = ""
 
-            for breach in email_result:
-                st.write("🔹 Breach Name:", breach["Name"])
-                st.write("📅 Breach Date:", breach["BreachDate"])
-                st.write("📊 Records Exposed:", breach["PwnCount"])
-                st.write("🗂 Exposed Data:", ", ".join(breach["DataClasses"]))
-                st.write("---")
+            for source in breach_sources:
+                if isinstance(source, dict):
+                    name = source.get("name", "Unknown Source")
+                else:
+                    name = str(source)
 
-                alert_message += f"""
-- Breach Name: {breach['Name']}
-  Date: {breach['BreachDate']}
-  Records Exposed: {breach['PwnCount']}
-  Data Exposed: {", ".join(breach['DataClasses'])}
+                st.write("🔹", name)
+                formatted_sources += f"- {name}\n"
+
+            breach_count = len(breach_sources)
+
+            # AI ANALYSIS
+            st.subheader("🤖 AI Risk Analysis")
+            ai_result = ai_risk_analysis(email, breach_count)
+            st.write(ai_result)
+
+            # Prepare Alert Message
+            alert_message = f"""
+⚠️ Dark Web Breach Alert Report
+
+Email: {email}
+Breach Sources Found: {breach_count}
+
+Sources:
+{formatted_sources}
+
+AI Risk Analysis:
+{ai_result}
 """
 
-        else:
-            st.success("✅ Email NOT found in known breaches.")
-
-        # 🔹 IF EITHER ONE IS BREACHED → SEND ALERT
-        if breach_found:
-            alert_message += "\n🔐 Recommended Actions:\n"
-            alert_message += "- Change passwords immediately\n"
-            alert_message += "- Enable Two-Factor Authentication (2FA)\n"
-            alert_message += "- Monitor financial and social accounts\n"
-
             send_alert(email, alert_message)
-            remediation_tips()
             st.info("📩 Alert email sent successfully.")
+
+        else:
+            st.success("✅ Email NOT found in known public breaches.")
+
 # ==============================
-# SAVE USER FOR MONITORING
+# SAVE EMAIL
 # ==============================
 
-if st.button("Save for Continuous Monitoring"):
-    if email and password:
-        c.execute("INSERT INTO users VALUES (?, ?)", (email, password))
+if st.button("Save Email for Monitoring"):
+    if email:
+        c.execute("INSERT INTO users VALUES (?)", (email,))
         conn.commit()
-        st.success("User saved for monitoring!")
+        st.success("Email saved for continuous monitoring!")
     else:
-        st.warning("Enter email and password first.")
+        st.warning("Enter email first.")
