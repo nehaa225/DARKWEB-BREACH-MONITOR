@@ -12,7 +12,6 @@ from datetime import datetime
 # LOAD ENV VARIABLES
 # ==============================
 load_dotenv()
-
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
@@ -25,8 +24,6 @@ st.set_page_config(
     page_icon="🛡️",
     layout="wide"
 )
-
-# Hide Streamlit branding
 st.markdown("""
     <style>
         footer {visibility: hidden;}
@@ -39,6 +36,7 @@ st.markdown("""
 # DATABASE SETUP
 # ==============================
 conn = sqlite3.connect("users.db", check_same_thread=False)
+conn.row_factory = sqlite3.Row  # <--- access columns by name safely
 c = conn.cursor()
 
 # Create table safely
@@ -53,19 +51,17 @@ conn.commit()
 # SAFE DATABASE COLUMN UPDATE
 # ==============================
 def ensure_columns_exist():
-    # Add last_checked column if missing
     try:
         c.execute("ALTER TABLE users ADD COLUMN last_checked TEXT")
     except sqlite3.OperationalError:
-        pass  # Already exists
+        pass  # already exists
 
-    # Add breach_count column if missing
     try:
         c.execute("ALTER TABLE users ADD COLUMN breach_count INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
-        pass  # Already exists
+        pass  # already exists
 
-    # Set existing NULL breach_count to 0
+    # Fix NULL breach_count
     c.execute("UPDATE users SET breach_count = 0 WHERE breach_count IS NULL")
     conn.commit()
 
@@ -125,7 +121,7 @@ Provide:
         return f"⚠️ AI analysis error: {str(e)}"
 
 # ==============================
-# EMAIL REMEDIATION TIPS
+# EMAIL REMEDIATION
 # ==============================
 def email_remediation():
     st.subheader("🔐 Recommended Immediate Actions")
@@ -137,7 +133,7 @@ def email_remediation():
     st.write("---")
 
 # ==============================
-# EMAIL ALERT SYSTEM
+# EMAIL ALERT
 # ==============================
 def send_alert(to_email, message):
     if not EMAIL_USER or not EMAIL_PASS:
@@ -162,7 +158,7 @@ def send_alert(to_email, message):
 st.title("🛡️ Dark Web Email Breach Monitor")
 tab1, tab2, tab3 = st.tabs(["Monitor Email", "Dashboard", "API Docs"])
 
-# --- TAB 1: MONITOR EMAIL ---
+# --- TAB 1 ---
 with tab1:
     email = st.text_input("Enter your Email Address")
 
@@ -182,7 +178,6 @@ with tab1:
                     leaks = breach.get("leaks") or breach.get("dataTypes") or []
                     if not leaks:
                         leaks = ["Information not provided by source"]
-
                     all_exposed_data.extend(leaks)
                     st.markdown(f"**🔹 Breach:** {name}")
                     st.markdown(f"📅 **Breach Date:** {date}")
@@ -229,7 +224,7 @@ Recommended Actions:
         else:
             st.warning("Enter email first.")
 
-# --- TAB 2: DASHBOARD (Auto-Check on Load) ---
+# --- TAB 2 ---
 with tab2:
     st.subheader("📊 Breach Monitoring Dashboard (Auto-Update)")
     c.execute("SELECT * FROM users")
@@ -238,22 +233,20 @@ with tab2:
     if users:
         dashboard_data = []
         for user in users:
-            email_db = user[0]
-            last_checked = user[1] if len(user) > 1 else None
-            previous_breach_count = int(user[2]) if len(user) > 2 and user[2] is not None else 0
+            email_db = user["email"]
+            last_checked = user["last_checked"]
+            previous_breach_count = int(user["breach_count"]) if user["breach_count"] is not None else 0
 
             breaches = check_email_breach(email_db) or []
             breach_count = len(breaches)
             last_checked_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            # Update DB safely
             c.execute(
                 "UPDATE users SET last_checked = ?, breach_count = ? WHERE email = ?",
                 (last_checked_now, breach_count, email_db)
             )
             conn.commit()
 
-            # Send alert if new breaches found
             if breach_count > previous_breach_count:
                 alert_message = f"""
 ⚠️ Dark Web Breach Alert Report
@@ -278,7 +271,7 @@ Check the dashboard for detailed information.
     else:
         st.info("No emails saved for monitoring yet.")
 
-# --- TAB 3: API DOCS ---
+# --- TAB 3 ---
 with tab3:
     st.subheader("📖 API Integration Documentation")
     st.markdown("### 1. LeakCheck API")
