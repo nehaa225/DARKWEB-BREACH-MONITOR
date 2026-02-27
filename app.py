@@ -86,18 +86,28 @@ def check_email_breach(email):
 # AI RISK ANALYSIS
 # ==============================
 def ai_risk_analysis(email, breach_count, exposed_data_list):
+    """
+    Perform AI risk analysis using Google Gemini API (current models).
+    """
     if not GOOGLE_API_KEY:
         return "⚠️ AI analysis unavailable (API key not configured)."
+
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
-        if "Information not provided by source" in exposed_data_list:
-            data_summary = ', '.join([d for d in exposed_data_list if d != "Information not provided by source"])
-            note = "⚠️ Some exposed data types were not provided by the source; treat this as higher risk."
-            if not data_summary:
-                data_summary = "Information not provided by source"
+        # Use a currently supported model (e.g., text-bison-001)
+        model_name = "models/text-bison-001"  # <-- Replace with a model from ListModels if different
+        url = f"https://generativelanguage.googleapis.com/v1beta/{model_name}:generateText?key={GOOGLE_API_KEY}"
+
+        # Prepare data summary
+        if not exposed_data_list:
+            data_summary = "No exposed data details provided"
         else:
             data_summary = ', '.join(exposed_data_list)
-            note = ""
+
+        note = ""
+        if "Information not provided by source" in exposed_data_list:
+            note = "⚠️ Some exposed data types were not provided by the source; treat this as higher risk."
+
+        # Prepare prompt
         prompt = f"""
 User email: {email}
 Number of breaches: {breach_count}
@@ -111,12 +121,23 @@ Provide:
 3. Immediate steps
 4. Long-term protection advice
 """
-        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+
+        payload = {
+            "prompt": prompt,
+            "temperature": 0.2,
+            "max_output_tokens": 500
+        }
+
+        # Call API
         response = requests.post(url, json=payload, timeout=20)
         if response.status_code != 200:
             return f"⚠️ API Error: {response.json().get('error', {}).get('message', 'Unknown error')}"
+
         result = response.json()
-        return result["candidates"][0]["content"]["parts"][0]["text"]
+        # Extract generated text
+        ai_text = result.get("candidates", [{}])[0].get("output", "")
+        return ai_text or "⚠️ AI returned no result."
+
     except Exception as e:
         return f"⚠️ AI analysis error: {str(e)}"
 
