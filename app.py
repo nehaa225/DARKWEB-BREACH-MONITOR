@@ -6,7 +6,8 @@ import os
 from email.message import EmailMessage
 from dotenv import load_dotenv
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
+import time
 
 # ==============================
 # LOAD ENV VARIABLES
@@ -60,19 +61,21 @@ def ensure_columns_exist():
 ensure_columns_exist()
 
 # ==============================
-# EMAIL BREACH CHECK (SAFE)
+# EMAIL BREACH CHECK (SAFE + RATE LIMIT HANDLING)
 # ==============================
 def check_email_breach(email):
     try:
         url = f"https://leakcheck.io/api/public?check={email}"
         response = requests.get(url, timeout=10)
 
-        # Check HTTP status
+        if response.status_code == 429:
+            st.warning(f"API rate limit exceeded for {email}. Try again later.")
+            return []
+
         if response.status_code != 200:
             st.warning(f"API returned status {response.status_code} for {email}")
             return []
 
-        # Try parsing JSON safely
         try:
             data = response.json()
         except ValueError:
@@ -266,10 +269,17 @@ with tab2:
         dashboard_data = []
         for user in users:
             email_db = user["email"]
-            previous_breach_count = int(user["breach_count"]) if user["breach_count"] is not None else 0
 
-            breaches = check_email_breach(email_db) or []
-            breach_count = len(breaches)
+            # Skip emails checked in last 6 hours
+            last_checked_dt = datetime.strptime(user["last_checked"], "%Y-%m-%d %H:%M:%S") if user["last_checked"] else None
+            if last_checked_dt and datetime.now() - last_checked_dt < timedelta(hours=6):
+                breaches = []  # skip API call
+                breach_count = int(user["breach_count"])
+            else:
+                breaches = check_email_breach(email_db) or []
+                breach_count = len(breaches)
+                time.sleep(1.5)  # prevent 429 rate limit
+
             last_checked_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             c.execute(
@@ -278,12 +288,12 @@ with tab2:
             )
             conn.commit()
 
-            if breach_count > previous_breach_count:
+            if breaches and breach_count > int(user["breach_count"]):
                 alert_message = f"""
 ⚠️ Dark Web Breach Alert Report
 
 Email: {email_db}
-Previous Breach Count: {previous_breach_count}
+Previous Breach Count: {user["breach_count"]}
 Current Breach Count: {breach_count}
 
 Check the dashboard for detailed information.
