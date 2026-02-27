@@ -7,7 +7,9 @@ import google.genai as genai
 from email.message import EmailMessage
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
+
 # ==============================
 # PAGE CONFIG
 # ==============================
@@ -28,7 +30,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================
-# DATABASE
+# DATABASE SETUP
 # ==============================
 
 conn = sqlite3.connect("users.db", check_same_thread=False)
@@ -58,8 +60,9 @@ def check_email_breach(email):
         return None
 
 # ==============================
-# AI RISK ANALYSIS 
+# AI RISK ANALYSIS (GOOGLE GEMINI)
 # ==============================
+
 def ai_risk_analysis(email, breach_count):
 
     api_key = os.getenv("GOOGLE_API_KEY")
@@ -92,6 +95,19 @@ Keep it clear and concise.
 
     except Exception as e:
         return f"⚠️ AI analysis error: {str(e)}"
+
+# ==============================
+# EMAIL REMEDIATION SECTION
+# ==============================
+
+def email_remediation():
+    st.subheader("🔐 Immediate Actions Required")
+    st.write("• Change passwords on affected platforms")
+    st.write("• Enable 2-Factor Authentication (2FA)")
+    st.write("• Check for suspicious login activity")
+    st.write("• Beware of phishing emails")
+    st.write("• Monitor financial & linked accounts")
+
 # ==============================
 # EMAIL ALERT SYSTEM
 # ==============================
@@ -158,7 +174,10 @@ if st.button("Check Email Breach Status"):
             ai_result = ai_risk_analysis(email, breach_count)
             st.write(ai_result)
 
-            # Prepare Alert Message
+            # REMEDIATION SECTION
+            email_remediation()
+
+            # ALERT MESSAGE
             alert_message = f"""
 ⚠️ Dark Web Breach Alert Report
 
@@ -179,7 +198,7 @@ AI Risk Analysis:
             st.success("✅ Email NOT found in known public breaches.")
 
 # ==============================
-# SAVE EMAIL
+# SAVE EMAIL FOR MONITORING
 # ==============================
 
 if st.button("Save Email for Monitoring"):
