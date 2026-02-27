@@ -36,7 +36,7 @@ st.markdown("""
 # DATABASE SETUP
 # ==============================
 conn = sqlite3.connect("users.db", check_same_thread=False)
-conn.row_factory = sqlite3.Row  # <--- access columns by name safely
+conn.row_factory = sqlite3.Row  # access columns by name safely
 c = conn.cursor()
 
 # Create table safely
@@ -119,10 +119,10 @@ Provide:
         return result["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
         return f"⚠️ AI analysis error: {str(e)}"
- # ==============================
+
+# ==============================
 # REMEDIATION RECOMMENDATION
 # ==============================
-
 def remediation_recommendation(exposed_data_list, breach_count):
     recommendations = []
 
@@ -177,7 +177,7 @@ def send_alert(to_email, message):
 st.title("🛡️ Dark Web Email Breach Monitor")
 tab1, tab2, tab3 = st.tabs(["Monitor Email", "Dashboard", "API Docs"])
 
-# --- TAB 1 ---
+# --- TAB 1: Monitor Email ---
 with tab1:
     email = st.text_input("Enter your Email Address")
 
@@ -204,11 +204,18 @@ with tab1:
                     st.markdown("---")
                     formatted_sources += f"- {name} ({date}) - Exposed Data: {', '.join(leaks)}\n"
 
+                # AI Risk Analysis
                 ai_result = ai_risk_analysis(email, len(breaches), all_exposed_data)
                 st.subheader("🤖 AI Risk Analysis")
                 st.write(ai_result)
-                email_remediation()
 
+                # Remediation Recommendations
+                st.subheader("🛠 Remediation Recommendations")
+                remediation_steps = remediation_recommendation(all_exposed_data, len(breaches))
+                for step in remediation_steps:
+                    st.write(step)
+
+                # Send alert email
                 alert_message = f"""
 ⚠️ Dark Web Breach Alert Report
 
@@ -222,10 +229,7 @@ AI Risk Analysis:
 {ai_result}
 
 Recommended Actions:
-- Change passwords on affected platforms
-- Enable 2FA everywhere
-- Check for suspicious login activity
-- Monitor financial & linked accounts
+{chr(10).join(remediation_steps)}
 """
                 send_alert(email, alert_message)
                 st.info("📩 Alert email sent successfully.")
@@ -243,7 +247,7 @@ Recommended Actions:
         else:
             st.warning("Enter email first.")
 
-# --- TAB 2 ---
+# --- TAB 2: Dashboard ---
 with tab2:
     st.subheader("📊 Breach Monitoring Dashboard (Auto-Update)")
     c.execute("SELECT * FROM users")
@@ -290,7 +294,7 @@ Check the dashboard for detailed information.
     else:
         st.info("No emails saved for monitoring yet.")
 
-# --- TAB 3 ---
+# --- TAB 3: API Docs ---
 with tab3:
     st.subheader("📖 API Integration Documentation")
     st.markdown("### 1. LeakCheck API")
