@@ -12,7 +12,6 @@ load_dotenv()
 # ==============================
 # PAGE CONFIG
 # ==============================
-
 st.set_page_config(
     page_title="Dark Web Email Breach Monitor",
     page_icon="🛡️",
@@ -31,10 +30,8 @@ st.markdown("""
 # ==============================
 # DATABASE SETUP
 # ==============================
-
 conn = sqlite3.connect("users.db", check_same_thread=False)
 c = conn.cursor()
-
 c.execute("""
 CREATE TABLE IF NOT EXISTS users(
     email TEXT UNIQUE
@@ -45,7 +42,6 @@ conn.commit()
 # ==============================
 # EMAIL BREACH CHECK
 # ==============================
-
 def check_email_breach(email):
     """Returns list of breaches with detailed info"""
     try:
@@ -62,7 +58,6 @@ def check_email_breach(email):
 # ==============================
 # AI RISK ANALYSIS (Google Gemini)
 # ==============================
-
 def ai_risk_analysis(email, breach_count, exposed_data_list):
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
@@ -71,10 +66,13 @@ def ai_risk_analysis(email, breach_count, exposed_data_list):
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
 
+        # Mark unknown data types
+        data_summary = ', '.join(exposed_data_list) if exposed_data_list else "Unknown Data Types"
+
         prompt = f"""
 User email: {email}
 Number of breaches: {breach_count}
-Exposed data types: {', '.join(exposed_data_list)}
+Exposed data types: {data_summary}
 
 Provide:
 1. Risk Level (Low/Medium/High/Critical)
@@ -102,7 +100,6 @@ Provide:
 # ==============================
 # EMAIL REMEDIATION SECTION
 # ==============================
-
 def email_remediation():
     st.subheader("🔐 Recommended Immediate Actions")
     st.write("• Change passwords on affected platforms")
@@ -115,7 +112,6 @@ def email_remediation():
 # ==============================
 # EMAIL ALERT SYSTEM
 # ==============================
-
 def send_alert(to_email, message):
     EMAIL_USER = os.getenv("EMAIL_USER")
     EMAIL_PASS = os.getenv("EMAIL_PASS")
@@ -141,11 +137,11 @@ def send_alert(to_email, message):
 # ==============================
 # UI
 # ==============================
-
 st.title("🛡️ Dark Web Email Breach Monitor")
 
 email = st.text_input("Enter your Email Address")
 
+# --- CHECK BREACH STATUS ---
 if st.button("Check Email Breach Status"):
 
     if not email:
@@ -160,11 +156,14 @@ if st.button("Check Email Breach Status"):
             all_exposed_data = []
 
             for breach in breaches:
-                name = breach.get("name", "Unknown Source")
-                date = breach.get("breachDate", "Unknown Date")
-                leaks = breach.get("leaks", ["Email"])  # default if leaks missing
+                # Handle missing or inconsistent fields
+                name = breach.get("name") or breach.get("title") or "Unknown Source"
+                date = breach.get("breachDate") or breach.get("date") or "Unknown Date"
+                leaks = breach.get("leaks") or breach.get("dataTypes") or []
 
-                # Collect all exposed data types for AI analysis
+                if not leaks:
+                    leaks = ["Unknown Data Types"]
+
                 all_exposed_data.extend(leaks)
 
                 # Display detailed breach info
@@ -202,6 +201,8 @@ Recommended Actions:
 - Enable 2FA everywhere
 - Check for suspicious login activity
 - Monitor financial & linked accounts
+
+⚠️ Note: Some breach data may be incomplete; review each source manually.
 """
             send_alert(email, alert_message)
             st.info("📩 Alert email sent successfully.")
@@ -209,10 +210,7 @@ Recommended Actions:
         else:
             st.success("✅ Email NOT found in known public breaches.")
 
-# ==============================
-# SAVE EMAIL FOR CONTINUOUS MONITORING
-# ==============================
-
+# --- SAVE EMAIL FOR CONTINUOUS MONITORING ---
 if st.button("Save Email for Monitoring"):
     if email:
         try:
