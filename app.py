@@ -65,8 +65,11 @@ def ensure_columns_exist():
     except sqlite3.OperationalError:
         pass  # Already exists
 
+    # Set existing NULL breach_count to 0
+    c.execute("UPDATE users SET breach_count = 0 WHERE breach_count IS NULL")
+    conn.commit()
+
 ensure_columns_exist()
-conn.commit()
 
 # ==============================
 # EMAIL BREACH CHECK
@@ -237,7 +240,7 @@ with tab2:
         for user in users:
             email_db = user[0]
             last_checked = user[1] if len(user) > 1 else None
-            previous_breach_count = user[2] if len(user) > 2 else 0
+            previous_breach_count = int(user[2]) if len(user) > 2 and user[2] is not None else 0
 
             breaches = check_email_breach(email_db) or []
             breach_count = len(breaches)
