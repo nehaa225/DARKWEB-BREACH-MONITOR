@@ -36,10 +36,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================
-# DATABASE SETUP
+# DATABASE SETUP (SAFE)
 # ==============================
 conn = sqlite3.connect("users.db", check_same_thread=False)
 c = conn.cursor()
+
+# Create table safely with defaults
 c.execute("""
 CREATE TABLE IF NOT EXISTS users(
     email TEXT UNIQUE,
@@ -75,7 +77,6 @@ def ai_risk_analysis(email, breach_count, exposed_data_list):
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
 
-        # Handle missing data types
         if "Information not provided by source" in exposed_data_list:
             data_summary = ', '.join([d for d in exposed_data_list if d != "Information not provided by source"])
             note = "⚠️ Some exposed data types were not provided by the source; treat this as higher risk."
@@ -211,7 +212,6 @@ Recommended Actions:
             else:
                 st.success("✅ Email NOT found in known public breaches.")
 
-    # --- SAVE EMAIL FOR MONITORING ---
     if st.button("Save Email for Monitoring"):
         if email:
             try:
@@ -234,18 +234,19 @@ with tab2:
         dashboard_data = []
 
         for user in users:
+            # Safe access to tuple elements
             email_db = user[0]
-            previous_breach_count = user[2] or 0
+            last_checked = user[1] if len(user) > 1 else None
+            previous_breach_count = user[2] if len(user) > 2 else 0
 
-            # Auto-check breaches
             breaches = check_email_breach(email_db) or []
             breach_count = len(breaches)
-            last_checked = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            last_checked_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            # Update database
+            # Update database safely
             c.execute(
                 "UPDATE users SET last_checked = ?, breach_count = ? WHERE email = ?",
-                (last_checked, breach_count, email_db)
+                (last_checked_now, breach_count, email_db)
             )
             conn.commit()
 
@@ -265,7 +266,7 @@ Check the dashboard for detailed information.
             dashboard_data.append({
                 "Email": email_db,
                 "Breach Count": breach_count,
-                "Last Checked": last_checked
+                "Last Checked": last_checked_now
             })
 
         df = pd.DataFrame(dashboard_data)
