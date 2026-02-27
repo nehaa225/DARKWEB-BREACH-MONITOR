@@ -5,9 +5,17 @@ import smtplib
 import os
 from email.message import EmailMessage
 from dotenv import load_dotenv
+import pandas as pd
+from datetime import datetime
 
-# Load environment variables
+# ==============================
+# LOAD ENV VARIABLES
+# ==============================
 load_dotenv()
+
+EMAIL_USER = os.getenv("EMAIL_USER")
+EMAIL_PASS = os.getenv("EMAIL_PASS")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # ==============================
 # PAGE CONFIG
@@ -34,7 +42,9 @@ conn = sqlite3.connect("users.db", check_same_thread=False)
 c = conn.cursor()
 c.execute("""
 CREATE TABLE IF NOT EXISTS users(
-    email TEXT UNIQUE
+    email TEXT UNIQUE,
+    last_checked TEXT,
+    breach_count INTEGER DEFAULT 0
 )
 """)
 conn.commit()
@@ -50,21 +60,20 @@ def check_email_breach(email):
         data = response.json()
         if data.get("success") and data.get("found") > 0:
             return data.get("sources")
-        return None
+        return []
     except Exception as e:
         st.warning(f"API error: {e}")
-        return None
+        return []
 
 # ==============================
-# AI RISK ANALYSIS (Google Gemini)
+# AI RISK ANALYSIS
 # ==============================
 def ai_risk_analysis(email, breach_count, exposed_data_list):
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
+    if not GOOGLE_API_KEY:
         return "⚠️ AI analysis unavailable (API key not configured)."
 
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
 
         # Handle missing data types
         if "Information not provided by source" in exposed_data_list:
@@ -103,7 +112,7 @@ Provide:
         return f"⚠️ AI analysis error: {str(e)}"
 
 # ==============================
-# EMAIL REMEDIATION SECTION
+# EMAIL REMEDIATION TIPS
 # ==============================
 def email_remediation():
     st.subheader("🔐 Recommended Immediate Actions")
@@ -118,9 +127,6 @@ def email_remediation():
 # EMAIL ALERT SYSTEM
 # ==============================
 def send_alert(to_email, message):
-    EMAIL_USER = os.getenv("EMAIL_USER")
-    EMAIL_PASS = os.getenv("EMAIL_PASS")
-
     if not EMAIL_USER or not EMAIL_PASS:
         st.warning("⚠️ Email credentials not configured.")
         return
@@ -144,52 +150,45 @@ def send_alert(to_email, message):
 # ==============================
 st.title("🛡️ Dark Web Email Breach Monitor")
 
-email = st.text_input("Enter your Email Address")
+tab1, tab2, tab3 = st.tabs(["Monitor Email", "Dashboard", "API Docs"])
 
-# --- CHECK BREACH STATUS ---
-if st.button("Check Email Breach Status"):
+# --- TAB 1: MONITOR EMAIL ---
+with tab1:
+    email = st.text_input("Enter your Email Address")
 
-    if not email:
-        st.warning("Please enter your email.")
-    else:
-        breaches = check_email_breach(email)
+    if st.button("Check Email Breach Status"):
+        if not email:
+            st.warning("Please enter your email.")
+        else:
+            breaches = check_email_breach(email)
+            if breaches:
+                st.error("⚠️ Email Found in Data Breaches!")
+                formatted_sources = ""
+                all_exposed_data = []
 
-        if breaches:
-            st.error("⚠️ Email Found in Data Breaches!")
+                for breach in breaches:
+                    name = breach.get("name") or breach.get("title") or "Unknown Source"
+                    date = breach.get("breachDate") or breach.get("date") or "Unknown Date"
+                    leaks = breach.get("leaks") or breach.get("dataTypes") or []
+                    if not leaks:
+                        leaks = ["Information not provided by source"]
 
-            formatted_sources = ""
-            all_exposed_data = []
+                    all_exposed_data.extend(leaks)
 
-            for breach in breaches:
-                # Handle missing or inconsistent fields
-                name = breach.get("name") or breach.get("title") or "Unknown Source"
-                date = breach.get("breachDate") or breach.get("date") or "Unknown Date"
-                leaks = breach.get("leaks") or breach.get("dataTypes") or []
+                    st.markdown(f"**🔹 Breach:** {name}")
+                    st.markdown(f"📅 **Breach Date:** {date}")
+                    st.markdown(f"🗂 **Exposed Data:** {', '.join(leaks)}")
+                    st.markdown("---")
 
-                # Updated placeholder for unknown data types
-                if not leaks:
-                    leaks = ["Information not provided by source"]
+                    formatted_sources += f"- {name} ({date}) - Exposed Data: {', '.join(leaks)}\n"
 
-                all_exposed_data.extend(leaks)
+                ai_result = ai_risk_analysis(email, len(breaches), all_exposed_data)
+                st.subheader("🤖 AI Risk Analysis")
+                st.write(ai_result)
 
-                # Display detailed breach info
-                st.markdown(f"**🔹 Breach:** {name}")
-                st.markdown(f"📅 **Breach Date:** {date}")
-                st.markdown(f"🗂 **Exposed Data:** {', '.join(leaks)}")
-                st.markdown("---")
+                email_remediation()
 
-                formatted_sources += f"- {name} ({date}) - Exposed Data: {', '.join(leaks)}\n"
-
-            # AI Risk Analysis
-            ai_result = ai_risk_analysis(email, len(breaches), all_exposed_data)
-            st.subheader("🤖 AI Risk Analysis")
-            st.write(ai_result)
-
-            # Immediate remediation tips
-            email_remediation()
-
-            # Send alert email
-            alert_message = f"""
+                alert_message = f"""
 ⚠️ Dark Web Breach Alert Report
 
 Email: {email}
@@ -206,23 +205,98 @@ Recommended Actions:
 - Enable 2FA everywhere
 - Check for suspicious login activity
 - Monitor financial & linked accounts
-
-⚠️ Note: Some breach data may be incomplete; review each source manually.
 """
-            send_alert(email, alert_message)
-            st.info("📩 Alert email sent successfully.")
+                send_alert(email, alert_message)
+                st.info("📩 Alert email sent successfully.")
+            else:
+                st.success("✅ Email NOT found in known public breaches.")
 
+    # --- SAVE EMAIL FOR MONITORING ---
+    if st.button("Save Email for Monitoring"):
+        if email:
+            try:
+                c.execute("INSERT INTO users(email) VALUES (?)", (email,))
+                conn.commit()
+                st.success("Email saved for continuous monitoring!")
+            except sqlite3.IntegrityError:
+                st.warning("Email is already being monitored.")
         else:
-            st.success("✅ Email NOT found in known public breaches.")
+            st.warning("Enter email first.")
 
-# --- SAVE EMAIL FOR CONTINUOUS MONITORING ---
-if st.button("Save Email for Monitoring"):
-    if email:
-        try:
-            c.execute("INSERT INTO users VALUES (?)", (email,))
+# --- TAB 2: DASHBOARD (Auto-Check on Load) ---
+with tab2:
+    st.subheader("📊 Breach Monitoring Dashboard (Auto-Update)")
+
+    c.execute("SELECT * FROM users")
+    users = c.fetchall()
+
+    if users:
+        dashboard_data = []
+
+        for user in users:
+            email_db = user[0]
+            previous_breach_count = user[2] or 0
+
+            # Auto-check breaches
+            breaches = check_email_breach(email_db) or []
+            breach_count = len(breaches)
+            last_checked = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Update database
+            c.execute(
+                "UPDATE users SET last_checked = ?, breach_count = ? WHERE email = ?",
+                (last_checked, breach_count, email_db)
+            )
             conn.commit()
-            st.success("Email saved for continuous monitoring!")
-        except sqlite3.IntegrityError:
-            st.warning("Email is already being monitored.")
+
+            # Send alert if new breaches found
+            if breach_count > previous_breach_count:
+                alert_message = f"""
+⚠️ Dark Web Breach Alert Report
+
+Email: {email_db}
+Previous Breach Count: {previous_breach_count}
+Current Breach Count: {breach_count}
+
+Check the dashboard for detailed information.
+"""
+                send_alert(email_db, alert_message)
+
+            dashboard_data.append({
+                "Email": email_db,
+                "Breach Count": breach_count,
+                "Last Checked": last_checked
+            })
+
+        df = pd.DataFrame(dashboard_data)
+        st.dataframe(df)
+        st.bar_chart(df.set_index("Email")["Breach Count"])
     else:
-        st.warning("Enter email first.")
+        st.info("No emails saved for monitoring yet.")
+
+# --- TAB 3: API DOCS ---
+with tab3:
+    st.subheader("📖 API Integration Documentation")
+
+    st.markdown("### 1. LeakCheck API")
+    st.markdown("""
+- **Purpose:** Detect if email is in known breaches  
+- **Endpoint:** `https://leakcheck.io/api/public?check=<EMAIL>`  
+- **Method:** GET  
+- **Response:** JSON with `success`, `found`, `sources`  
+""")
+
+    st.markdown("### 2. Google Gemini AI API")
+    st.markdown("""
+- **Purpose:** AI-generated risk analysis  
+- **Endpoint:** `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=<API_KEY>`  
+- **Method:** POST  
+- **Payload:** JSON with `contents`  
+""")
+
+    st.markdown("### 3. SMTP Email Alerts")
+    st.markdown("""
+- **Purpose:** Notify users via email  
+- **Library:** `smtplib` + `email.message.EmailMessage`  
+- **Requirements:** `EMAIL_USER`, `EMAIL_PASS` environment variables  
+""")
