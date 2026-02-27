@@ -119,18 +119,37 @@ Provide:
         return result["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
         return f"⚠️ AI analysis error: {str(e)}"
+ # ==============================
+# REMEDIATION RECOMMENDATION
+# ==============================
 
-# ==============================
-# EMAIL REMEDIATION
-# ==============================
-def email_remediation():
-    st.subheader("🔐 Recommended Immediate Actions")
-    st.write("• Change passwords on affected platforms")
-    st.write("• Enable Two-Factor Authentication (2FA) everywhere")
-    st.write("• Check for suspicious login activity")
-    st.write("• Beware of phishing emails")
-    st.write("• Monitor financial & linked accounts")
-    st.write("---")
+def remediation_recommendation(exposed_data_list, breach_count):
+    recommendations = []
+
+    # Base recommendations
+    recommendations.append("• Change passwords on all affected platforms.")
+    recommendations.append("• Enable Two-Factor Authentication (2FA) on all accounts.")
+    recommendations.append("• Check for suspicious login activity.")
+    
+    # Data-specific recommendations
+    if any(d.lower() in ["password", "hashedpassword"] for d in exposed_data_list):
+        recommendations.append("• Your passwords were leaked. Consider using a password manager and updating all accounts immediately.")
+    
+    if any(d.lower() in ["email", "username"] for d in exposed_data_list) and breach_count > 1:
+        recommendations.append("• Multiple breaches detected for your email. Be cautious with phishing attempts.")
+    
+    if any(d.lower() in ["ssn", "socialsecuritynumber", "dob"] for d in exposed_data_list):
+        recommendations.append("• Sensitive personal information exposed. Consider credit monitoring or identity theft protection.")
+    
+    if any(d.lower() in ["credit card", "payment", "bank"] for d in exposed_data_list):
+        recommendations.append("• Payment info exposed. Contact your bank and monitor financial transactions.")
+
+    # Long-term recommendations
+    recommendations.append("• Regularly monitor your emails for breaches.")
+    recommendations.append("• Use unique passwords for each account.")
+    recommendations.append("• Consider using AI-based monitoring for sensitive data.")
+
+    return recommendations
 
 # ==============================
 # EMAIL ALERT
