@@ -1,0 +1,30 @@
+# Database caches
+*.db
+*.sqlite3
+users.db
+
+# Environment variables
+.env
+
+# Python compilation files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Vercel deployment folder
+.vercel/
+
+# IDE / Editor configuration
+.vscode/
+.idea/
+.project
+.pydevproject
+.settings/
+.DS_Store

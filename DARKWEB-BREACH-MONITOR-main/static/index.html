@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dark Web Breach Shield</title>
+    <!-- Modern Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Premium Styles -->
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Chart.js for beautiful interactive analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Marked.js to parse Gemini AI Markdown reports -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="cyber-container">
+        <!-- Sidebar Navigation & Quick Monitoring -->
+        <aside class="cyber-sidebar">
+            <div class="brand-section">
+                <span class="brand-icon">🛡️</span>
+                <div>
+                    <h1 class="brand-name">BREACH SHIELD</h1>
+                    <span class="brand-subtitle">Dark Web Monitor</span>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-tab="tab-scanner">
+                    <span class="nav-icon">🔍</span> Identity Scanner
+                </button>
+                <button class="nav-item" data-tab="tab-dashboard">
+                    <span class="nav-icon">📊</span> Analytics Console
+                </button>
+                <button class="nav-item" data-tab="tab-password">
+                    <span class="nav-icon">🔑</span> Credential Audit
+                </button>
+                <button class="nav-item" data-tab="tab-settings">
+                    <span class="nav-icon">⚙️</span> Configuration
+                </button>
+                <button class="nav-item" data-tab="tab-docs">
+                    <span class="nav-icon">📖</span> Systems Architecture
+                </button>
+            </nav>
+
+            <!-- Diagnostics -->
+            <div class="sidebar-status-box">
+                <h3 class="status-box-title">System Status</h3>
+                <div class="status-indicator">
+                    <span id="status-demo-dot" class="status-dot warning"></span>
+                    <span>Demo Mode: <strong id="status-demo-text">Active</strong></span>
+                </div>
+                <div class="status-indicator">
+                    <span id="status-gemini-dot" class="status-dot danger"></span>
+                    <span>Gemini Core: <strong id="status-gemini-text">Inactive</strong></span>
+                </div>
+                <div class="status-indicator">
+                    <span id="status-smtp-dot" class="status-dot danger"></span>
+                    <span>SMTP Alerts: <strong id="status-smtp-text">Inactive</strong></span>
+                </div>
+            </div>
+
+            <!-- Monitored Assets Summary Widget -->
+            <div class="sidebar-assets-box">
+                <div class="assets-box-header">
+                    <h3 class="status-box-title">Monitored Assets</h3>
+                    <button id="btn-sidebar-sync" class="sync-icon-btn" title="Sync Monitored Emails">🔄</button>
+                </div>
+                <!-- Progress bar for syncing -->
+                <div id="sync-progress-container" class="sync-progress-container hidden">
+                    <div class="progress-track">
+                        <div id="sync-progress-bar" class="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <span id="sync-progress-text" class="progress-label">Syncing...</span>
+                </div>
+                <div id="monitored-list-sidebar" class="monitored-list-sidebar">
+                    <p class="empty-list-text">No email accounts registered.</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Display Pane -->
+        <main class="cyber-main">
+            <!-- TAB 1: ACTIVE EMAIL SCANNER -->
+            <section id="tab-scanner" class="tab-pane active">
+                <div class="pane-header">
+                    <h2>🔍 Identity Leak Assessment</h2>
+                    <p>Audit individual email targets across indexed database structures and data dump archives.</p>
+                </div>
+
+                <div class="cyber-card">
+                    <h3 class="card-title">Run Target Analysis</h3>
+                    <div class="scanner-form">
+                        <div class="input-wrapper">
+                            <span class="input-icon">📧</span>
+                            <input type="email" id="scan-email" placeholder="enter-target-email@domain.com" required>
+                        </div>
+                        <button id="btn-run-scan" class="btn btn-primary">Check Identity Status</button>
+                    </div>
+                </div>
+
+                <!-- Live Scanning Animation Overlay -->
+                <div id="scan-loader" class="scan-loader-container hidden">
+                    <div class="scanner-radar"></div>
+                    <div class="scanner-log">
+                        <p class="log-line text-blue">> Initializing breach verification payload...</p>
+                        <p class="log-line text-blue">> Querying LeakCheck API data catalog...</p>
+                        <p class="log-line text-blue">> Calculating credential hash signatures...</p>
+                    </div>
+                </div>
+
+                <!-- Scan Results Container -->
+                <div id="scan-results" class="scan-results-container hidden">
+                    <!-- Dynamic Results Rendered Here -->
+                </div>
+            </section>
+
+            <!-- TAB 2: ANALYTICS CONSOLE -->
+            <section id="tab-dashboard" class="tab-pane">
+                <div class="pane-header">
+                    <h2>📊 Security Analytics Console</h2>
+                    <p>Review telemetry and breach statistics compiled across all registered monitoring nodes.</p>
+                </div>
+
+                <!-- Metrics Grid -->
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <span class="metric-val" id="metric-assets">0</span>
+                        <span class="metric-label">Monitored Assets</span>
+                    </div>
+                    <div class="metric-card highlight-orange">
+                        <span class="metric-val" id="metric-breaches">0</span>
+                        <span class="metric-label">Breach Incidents</span>
+                    </div>
+                    <div class="metric-card highlight-green">
+                        <span class="metric-val" id="metric-safe">0 / 0</span>
+                        <span class="metric-label">Safe Assets</span>
+                    </div>
+                    <div class="metric-card highlight-red">
+                        <span class="metric-val" id="metric-critical">0</span>
+                        <span class="metric-label">High/Critical Exposure</span>
+                    </div>
+                </div>
+
+                <!-- Charts Layout -->
+                <div class="charts-row">
+                    <div class="cyber-card chart-container">
+                        <h3 class="card-title">🗂 Threat Surface: Exposed Data Types</h3>
+                        <div class="chart-canvas-wrapper">
+                            <canvas id="chart-data-types"></canvas>
+                        </div>
+                    </div>
+                    <div class="cyber-card chart-container">
+                        <h3 class="card-title">🛡️ Severity Profiles Distribution</h3>
+                        <div class="chart-canvas-wrapper">
+                            <canvas id="chart-severity"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cyber-card timeline-card">
+                    <h3 class="card-title">📅 Historic Security Exposure Timeline</h3>
+                    <div class="timeline-canvas-wrapper">
+                        <canvas id="chart-timeline"></canvas>
+                    </div>
+                </div>
+
+                <!-- Log Inventory Table -->
+                <div class="cyber-card logs-card">
+                    <div class="logs-header">
+                        <h3 class="card-title">📋 Logged Breach Inventory</h3>
+                        <div class="table-actions">
+                            <input type="text" id="log-search" placeholder="Search logs...">
+                            <a href="/api/dashboard/export" id="btn-export-csv" class="btn btn-secondary btn-small">📥 Export Report</a>
+                        </div>
+                    </div>
+                    
+                    <div class="table-scroll-container">
+                        <table class="cyber-table" id="inventory-table">
+                            <thead>
+                                <tr>
+                                    <th>Asset</th>
+                                    <th>Source Database</th>
+                                    <th>Breach Date</th>
+                                    <th>Exposed Data Attributes</th>
+                                    <th>Date Found</th>
+                                    <th>Severity</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventory-tbody">
+                                <tr>
+                                    <td colspan="6" class="center-text text-gray">No monitored incidents found. Populate sandbox data to view stats.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: CREDENTIAL AUDIT -->
+            <section id="tab-password" class="tab-pane">
+                <div class="pane-header">
+                    <h2>🔑 Credential Integrity Assessment</h2>
+                    <p>Test cryptographic strength properties and execute pwned-range audits without leaking the password.</p>
+                </div>
+
+                <div class="cyber-card">
+                    <h3 class="card-title">Credential Analyzer</h3>
+                    <div class="password-form">
+                        <div class="input-wrapper">
+                            <span class="input-icon">🔑</span>
+                            <input type="password" id="audit-password" placeholder="Enter password to audit...">
+                            <button id="btn-toggle-password" class="password-toggle-btn" type="button" title="Show/Hide Password">👁️</button>
+                        </div>
+                    </div>
+
+                    <!-- Entropy Meter -->
+                    <div id="password-strength-box" class="password-strength-box hidden">
+                        <div class="strength-summary">
+                            <span class="strength-label">Cryptographic Strength:</span>
+                            <span id="password-rating" class="strength-value text-red">Weak</span>
+                        </div>
+                        <div class="progress-track password-progress-track">
+                            <div id="password-strength-bar" class="progress-fill strength-fill" style="width: 0%; background-color: #ef4444;"></div>
+                        </div>
+                        <div class="entropy-label">Estimated Entropy: <strong id="password-entropy">0.00</strong> bits</div>
+                        
+                        <div id="password-suggestions" class="password-suggestions hidden">
+                            <!-- Dynamic recommendations -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- HIBP Leak Checker Container -->
+                <div id="password-audit-results" class="cyber-card hidden">
+                    <h3 class="card-title">🔍 HaveIBeenPwned Compromise Scan (k-Anonymity Model)</h3>
+                    <p class="text-gray" style="margin-bottom: 15px;">The password hash is calculated client-side in your browser. The plain credential never leaves your local network node.</p>
+                    
+                    <div id="hibp-scanner-status" class="hibp-status-container">
+                        <!-- Dynamic HIBP Result Alerts -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: CONFIGURATION PANEL -->
+            <section id="tab-settings" class="tab-pane">
+                <div class="pane-header">
+                    <h2>⚙️ Shield Configuration Panel</h2>
+                    <p>Adjust system switches, alert gateways, and populate developer development sandboxes.</p>
+                </div>
+
+                <!-- SMTP Config -->
+                <div class="cyber-card">
+                    <h3 class="card-title">📧 Outbound Email Alerts (SMTP Gateway)</h3>
+                    <div class="settings-grid">
+                        <div class="settings-field">
+                            <label for="settings-smtp-host">SMTP Server Host</label>
+                            <input type="text" id="settings-smtp-host" placeholder="smtp.gmail.com">
+                        </div>
+                        <div class="settings-field">
+                            <label for="settings-smtp-port">SMTP Port</label>
+                            <input type="number" id="settings-smtp-port" value="587">
+                        </div>
+                        <div class="settings-field">
+                            <label>SMTP Username</label>
+                            <input type="text" id="settings-smtp-user" disabled placeholder="Configure in .env file (EMAIL_USER)">
+                        </div>
+                        <div class="settings-field">
+                            <label>SMTP Password</label>
+                            <input type="password" value="••••••••••••" disabled placeholder="Configure in .env file (EMAIL_PASS)">
+                        </div>
+                    </div>
+                    
+                    <div class="settings-actions">
+                        <button id="btn-save-settings" class="btn btn-primary">Save SMTP Host Config</button>
+                    </div>
+
+                    <hr class="card-divider">
+
+                    <h4 class="settings-subtitle">Send Verification Test Mail</h4>
+                    <div class="smtp-test-form">
+                        <input type="email" id="test-email-recipient" placeholder="recipient@domain.com">
+                        <button id="btn-send-test-mail" class="btn btn-secondary">Send Verification Test Mail</button>
+                    </div>
+                    <div id="smtp-test-feedback" class="smtp-feedback hidden"></div>
+                </div>
+
+                <!-- AI and Simulation Switches -->
+                <div class="cyber-card">
+                    <h3 class="card-title">🤖 Artificial Intelligence Threat Core</h3>
+                    <div class="switch-box">
+                        <div class="switch-info">
+                            <span class="switch-title">Enable Gemini Live Threat Analysis</span>
+                            <span class="switch-desc">Generate detailed, custom mitigation reports from threat records using Google's Gemini models.</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="toggle-gemini">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div id="gemini-key-status" class="status-warning-box text-orange hidden">
+                        ⚠️ Gemini integration requires a valid <code>GOOGLE_API_KEY</code> set in your environment file.
+                    </div>
+                </div>
+
+                <!-- Developer Sandbox Operations -->
+                <div class="cyber-card border-orange">
+                    <h3 class="card-title text-orange">🧪 Sandbox & Development Tools</h3>
+                    <p class="text-gray" style="margin-bottom: 20px;">Use these controls to test charts, verify UI layouts, and manage local caches.</p>
+                    
+                    <div class="sandbox-buttons">
+                        <button id="btn-sandbox-populate" class="btn btn-warning">🚀 Populate Mock Data</button>
+                        <button id="btn-sandbox-reset" class="btn btn-danger">⚠️ Reset Application Database</button>
+                    </div>
+                    <div id="sandbox-feedback" class="smtp-feedback hidden"></div>
+                </div>
+            </section>
+
+            <!-- TAB 5: SYSTEMS ARCHITECTURE -->
+            <section id="tab-docs" class="tab-pane">
+                <div class="pane-header">
+                    <h2>📖 Systems Architecture & Developer Documentation</h2>
+                    <p>Comprehensive layout of operational nodes, cryptographic protection, and communication protocols.</p>
+                </div>
+
+                <div class="cyber-card">
+                    <h3 class="card-title">⚙️ Cyber-Engine Data Flow</h3>
+                    <ol class="docs-list">
+                        <li>
+                            <strong>Identity Scanning:</strong> 
+                            When an email address is scanned, the backend queries the <em>LeakCheck API</em> or mock generator to identify breach matches.
+                        </li>
+                        <li>
+                            <strong>Local Caching:</strong> 
+                            All confirmed breach items are indexed into a local, high-speed <em>SQLite database</em> structure to generate telemetry and allow offline operations.
+                        </li>
+                        <li>
+                            <strong>AI Threat Analysis:</strong> 
+                            If enabled, the email and raw breach data is formatted and securely dispatched to the <em>Gemini AI API</em> via HTTPS endpoints. It returns a tailored threat vector description and custom prioritization steps.
+                        </li>
+                        <li>
+                            <strong>SMTP Dispatch:</strong> 
+                            When breaches are found on a monitored address, the SMTP alert dispatcher immediately fires a priority threat brief to the target inbox.
+                        </li>
+                    </ol>
+                    
+                    <hr class="card-divider">
+
+                    <h3 class="card-title">🛡️ Cryptographic Anonymity: k-Anonymity Model</h3>
+                    <p class="docs-paragraph">
+                        To audit passwords securely without transmitting credentials to external APIs, our application uses the <strong>k-Anonymity model</strong>:
+                    </p>
+                    <ol class="docs-list">
+                        <li>
+                            The browser calculates the SHA-1 hash of the password locally: <br>
+                            <code>password</code> ➡️ <code>5BAA61E4C9B93F3F0682250B6CF8331B7EE68FD8</code>
+                        </li>
+                        <li>
+                            The script extracts the first <strong>5 characters</strong> of the hash prefix: <code>5BAA6</code>.
+                        </li>
+                        <li>
+                            The browser requests only the matching prefix block from the HaveIBeenPwned range API: <br>
+                            <code>GET https://api.pwnedpasswords.com/range/5BAA6</code>
+                        </li>
+                        <li>
+                            The API returns a list of all known breached hash suffixes matching that prefix along with their incidence counts. E.g., <br>
+                            <code>1E4C9B3F3F0682250B6CF8331B7EE68FD8:39482</code>
+                        </li>
+                        <li>
+                            The javascript audits the suffix list locally. The external database server never receives your full password hash or your plain credentials.
+                        </li>
+                    </ol>
+                </div>
+            </section>
+        </main>
+    </div>
+    <!-- App Control Scripts -->
+    <script src="js/app.js"></script>
+</body>
+</html>
